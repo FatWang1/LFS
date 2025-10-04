@@ -199,7 +199,7 @@ CMD ["./lfs-server"]
 
 ## 📄 许可证
 
-MIT License
+AGPL License
 
 ---
 
