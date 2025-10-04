@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -26,11 +27,17 @@ const (
 	// 分片大小
 	DefaultChunkSize = 5 * 1024 * 1024 // 5MB
 
+	// MD5计算配置
+	MD5ChunkSize     = 64 * 1024 * 1024 // 64MB 分块大小，适合大文件
+	MD5MaxConcurrent = 3                // 最大并发计算数
+
 	// 错误消息
 	ErrFileNotFound  = "file not found"
 	ErrInvalidRange  = "invalid range header"
 	ErrChunkNotFound = "chunk not found"
 	ErrMD5Mismatch   = "MD5 checksum mismatch"
+	ErrMD5Timeout    = "MD5 calculation timeout"
+	ErrMD5InProgress = "MD5 calculation in progress"
 )
 
 // FileMetadata 文件元数据结构
@@ -49,6 +56,170 @@ type FileChunkInfo struct {
 	ChunkSize  int64  `json:"chunk_size"`
 	TotalChunk int    `json:"total_chunk"`
 	MD5        string `json:"md5"`
+}
+
+// MD5CacheEntry MD5缓存条目
+type MD5CacheEntry struct {
+	MD5         string    `json:"md5"`
+	ModTime     time.Time `json:"mod_time"`
+	Size        int64     `json:"size"`
+	Calculated  bool      `json:"calculated"`
+	Calculating bool      `json:"calculating"`     // 是否正在计算中
+	Progress    float64   `json:"progress"`        // 计算进度 0.0-1.0
+	Error       string    `json:"error,omitempty"` // 计算错误信息
+}
+
+// MD5Cache MD5缓存管理器
+type MD5Cache struct {
+	cache     map[string]*MD5CacheEntry
+	mutex     sync.RWMutex
+	semaphore chan struct{} // 控制并发计算数量
+}
+
+// 全局MD5缓存实例
+var md5Cache = &MD5Cache{
+	cache:     make(map[string]*MD5CacheEntry),
+	semaphore: make(chan struct{}, MD5MaxConcurrent),
+}
+
+// GetMD5FromCache 从缓存获取MD5
+func (mc *MD5Cache) GetMD5FromCache(filePath string, modTime time.Time, size int64) (string, bool) {
+	mc.mutex.RLock()
+	defer mc.mutex.RUnlock()
+
+	entry, exists := mc.cache[filePath]
+	if !exists {
+		return "", false
+	}
+
+	// 检查文件是否被修改
+	if entry.ModTime != modTime || entry.Size != size {
+		return "", false
+	}
+
+	return entry.MD5, entry.Calculated
+}
+
+// SetMD5ToCache 设置MD5到缓存
+func (mc *MD5Cache) SetMD5ToCache(filePath, md5 string, modTime time.Time, size int64) {
+	mc.mutex.Lock()
+	defer mc.mutex.Unlock()
+
+	mc.cache[filePath] = &MD5CacheEntry{
+		MD5:         md5,
+		ModTime:     modTime,
+		Size:        size,
+		Calculated:  true,
+		Calculating: false,
+	}
+}
+
+// SetCalculating 设置正在计算状态
+func (mc *MD5Cache) SetCalculating(filePath string, modTime time.Time, size int64) {
+	mc.mutex.Lock()
+	defer mc.mutex.Unlock()
+
+	mc.cache[filePath] = &MD5CacheEntry{
+		ModTime:     modTime,
+		Size:        size,
+		Calculated:  false,
+		Calculating: true,
+		Progress:    0.0,
+	}
+}
+
+// UpdateProgress 更新计算进度
+func (mc *MD5Cache) UpdateProgress(filePath string, progress float64) {
+	mc.mutex.Lock()
+	defer mc.mutex.Unlock()
+
+	if entry, exists := mc.cache[filePath]; exists {
+		entry.Progress = progress
+	}
+}
+
+// SetError 设置计算错误
+func (mc *MD5Cache) SetError(filePath string, err error) {
+	mc.mutex.Lock()
+	defer mc.mutex.Unlock()
+
+	if entry, exists := mc.cache[filePath]; exists {
+		entry.Calculating = false
+		entry.Error = err.Error()
+	}
+}
+
+// GetProgress 获取计算进度
+func (mc *MD5Cache) GetProgress(filePath string) (float64, bool, string) {
+	mc.mutex.RLock()
+	defer mc.mutex.RUnlock()
+
+	entry, exists := mc.cache[filePath]
+	if !exists {
+		return 0, false, ""
+	}
+
+	return entry.Progress, entry.Calculating, entry.Error
+}
+
+// calculateFileMD5Chunked 分块计算大文件MD5（支持任意大小文件）
+func calculateFileMD5Chunked(filePath string, progressCallback func(float64)) (string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	// 获取文件大小
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return "", err
+	}
+	fileSize := fileInfo.Size()
+
+	hash := md5.New()
+	buf := make([]byte, MD5ChunkSize)
+	var totalRead int64
+
+	for {
+		n, err := file.Read(buf)
+		if n > 0 {
+			hash.Write(buf[:n])
+			totalRead += int64(n)
+
+			// 更新进度
+			if progressCallback != nil {
+				progress := float64(totalRead) / float64(fileSize)
+				progressCallback(progress)
+			}
+		}
+
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return "", err
+		}
+	}
+
+	return hex.EncodeToString(hash.Sum(nil)), nil
+}
+
+// calculateFileMD5WithProgress 带进度回调的MD5计算
+func calculateFileMD5WithProgress(filePath string, progressCallback func(float64)) (string, error) {
+	// 对于大文件使用分块计算
+	fileInfo, err := os.Stat(filePath)
+	if err != nil {
+		return "", err
+	}
+
+	// 如果文件大于100MB，使用分块计算
+	if fileInfo.Size() > 100*1024*1024 {
+		return calculateFileMD5Chunked(filePath, progressCallback)
+	}
+
+	// 小文件使用原有方法
+	return calculateFileMD5(filePath)
 }
 
 // SaveFile 保存文件到指定路径，支持断点重传
@@ -414,7 +585,7 @@ func parseRangeHeader(rangeHeader string) (int, int, error) {
 	return start, end, nil
 }
 
-// ListFiles 列出存储路径下的所有文件
+// ListFiles 列出存储路径下的所有文件（优化版 - 异步MD5计算）
 func ListFiles(storagePath string) ([]FileMetadata, error) {
 	var files []FileMetadata
 
@@ -438,10 +609,42 @@ func ListFiles(storagePath string) ([]FileMetadata, error) {
 			return nil, err
 		}
 
-		// 计算文件MD5值
-		md5sum, err := calculateFileMD5(filepath.Join(storagePath, info.Name()))
-		if err != nil {
-			// 如果计算MD5失败，继续处理其他文件
+		filePath := filepath.Join(storagePath, info.Name())
+
+		// 先尝试从缓存获取MD5
+		md5sum, calculated := md5Cache.GetMD5FromCache(filePath, info.ModTime(), info.Size())
+
+		// 如果缓存中没有或文件已修改，异步计算MD5
+		if !calculated {
+			// 检查是否已经在计算中
+			_, calculating, _ := md5Cache.GetProgress(filePath)
+			if !calculating {
+				// 设置正在计算状态
+				md5Cache.SetCalculating(filePath, info.ModTime(), info.Size())
+
+				// 异步计算MD5（不阻塞列表响应，支持任意大小文件）
+				go func(filePath string, modTime time.Time, size int64) {
+					// 获取信号量，控制并发数
+					md5Cache.semaphore <- struct{}{}
+					defer func() { <-md5Cache.semaphore }()
+
+					// 使用带进度回调的计算方法
+					md5, err := calculateFileMD5WithProgress(filePath, func(progress float64) {
+						md5Cache.UpdateProgress(filePath, progress)
+					})
+
+					if err != nil {
+						// 计算失败，设置错误状态
+						md5Cache.SetError(filePath, err)
+						return
+					}
+
+					// 计算成功，更新缓存
+					md5Cache.SetMD5ToCache(filePath, md5, modTime, size)
+				}(filePath, info.ModTime(), info.Size())
+			}
+
+			// 列表响应中不包含MD5，但会异步计算
 			md5sum = ""
 		}
 
@@ -482,8 +685,73 @@ func calculateFileMD5(filePath string) (string, error) {
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
-// GetFileMD5 获取文件的MD5值
+// GetFileMD5 获取文件的MD5值（带缓存，支持大文件）
 func GetFileMD5(storagePath, filename string) (string, error) {
 	filePath := filepath.Join(storagePath, filename)
-	return calculateFileMD5(filePath)
+
+	// 获取文件信息
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return "", err
+	}
+
+	// 先尝试从缓存获取
+	md5sum, calculated := md5Cache.GetMD5FromCache(filePath, info.ModTime(), info.Size())
+	if calculated {
+		return md5sum, nil
+	}
+
+	// 检查是否正在计算中
+	progress, calculating, errorMsg := md5Cache.GetProgress(filePath)
+	if calculating {
+		return "", fmt.Errorf("%s: progress %.1f%%", ErrMD5InProgress, progress*100)
+	}
+
+	if errorMsg != "" {
+		return "", fmt.Errorf("MD5 calculation failed: %s", errorMsg)
+	}
+
+	// 缓存中没有且未在计算，同步计算MD5（支持大文件）
+	md5sum, err = calculateFileMD5WithProgress(filePath, nil)
+	if err != nil {
+		return "", err
+	}
+
+	// 更新缓存
+	md5Cache.SetMD5ToCache(filePath, md5sum, info.ModTime(), info.Size())
+	return md5sum, nil
+}
+
+// GetFileMetadataWithMD5 获取包含MD5的文件元数据
+func GetFileMetadataWithMD5(storagePath, filename string) (*FileMetadata, error) {
+	filePath := filepath.Join(storagePath, filename)
+
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	// 获取MD5（带缓存）
+	md5sum, err := GetFileMD5(storagePath, filename)
+	if err != nil {
+		// MD5计算失败，返回基本信息
+		md5sum = ""
+	}
+
+	return &FileMetadata{
+		Name:    info.Name(),
+		Size:    info.Size(),
+		ModTime: info.ModTime(),
+		MD5:     md5sum,
+	}, nil
+}
+
+// GetFilePath 获取文件完整路径
+func GetFilePath(storagePath, filename string) string {
+	return filepath.Join(storagePath, filename)
+}
+
+// GetMD5Progress 获取MD5计算进度
+func GetMD5Progress(filePath string) (float64, bool, string) {
+	return md5Cache.GetProgress(filePath)
 }

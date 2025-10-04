@@ -17,3 +17,6 @@ venv/
 .idea/
 .vscode/
 .cursor/
+*.sh
+lfs-server
+performance_test.md
