@@ -1,0 +1,386 @@
+/* 全局样式 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #333;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* 头部样式 */
+header {
+    text-align: center;
+    margin-bottom: 30px;
+    color: white;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+header h1 {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+}
+
+header p {
+    font-size: 1.2rem;
+    opacity: 0.9;
+}
+
+/* 主要内容区域 */
+main {
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    padding: 30px;
+    margin-bottom: 30px;
+}
+
+/* 上传区域 */
+.upload-section {
+    margin-bottom: 30px;
+}
+
+#drop-area {
+    border: 3px dashed #ccc;
+    border-radius: 15px;
+    padding: 40px 20px;
+    text-align: center;
+    transition: all 0.3s ease;
+    background-color: #f8f9fa;
+    position: relative;
+}
+
+#drop-area.highlight {
+    border-color: #667eea;
+    background-color: #e9ecef;
+    transform: scale(1.02);
+}
+
+.upload-icon {
+    font-size: 4rem;
+    color: #667eea;
+    margin-bottom: 20px;
+}
+
+#drop-area h2 {
+    color: #495057;
+    margin-bottom: 15px;
+}
+
+#drop-area p {
+    color: #6c757d;
+    margin-bottom: 20px;
+}
+
+/* 按钮样式 */
+.btn {
+    display: inline-block;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    text-align: center;
+    transition: all 0.3s ease;
+    text-decoration: none;
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.btn-primary {
+    background-color: #667eea;
+    color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+    background-color: #5a6fd8;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.btn-success {
+    background-color: #28a745;
+    color: white;
+}
+
+.btn-success:hover:not(:disabled) {
+    background-color: #218838;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background-color: #5a6268;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(108, 117, 125, 0.4);
+}
+
+#file-input {
+    display: none;
+}
+
+/* 上传控制区域 */
+.upload-controls {
+    text-align: center;
+    margin-top: 20px;
+}
+
+/* 状态区域 */
+.status-section {
+    margin-bottom: 30px;
+}
+
+.progress-container {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.progress-bar {
+    flex-grow: 1;
+    height: 20px;
+    background-color: #e9ecef;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #667eea, #764ba2);
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    font-weight: bold;
+    min-width: 50px;
+    text-align: right;
+}
+
+/* 文件列表区域 */
+.files-section {
+    margin-bottom: 20px;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.section-header h2 {
+    color: #495057;
+}
+
+.table-container {
+    overflow-x: auto;
+}
+
+#files-table {
+    width: 100%;
+    border-collapse: collapse;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+#files-table thead {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+#files-table th {
+    padding: 15px;
+    text-align: left;
+    font-weight: 600;
+}
+
+#files-table tbody tr {
+    border-bottom: 1px solid #dee2e6;
+    transition: background-color 0.2s ease;
+}
+
+#files-table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+#files-table td {
+    padding: 15px;
+}
+
+#files-table .empty-list {
+    text-align: center;
+    color: #6c757d;
+    font-style: italic;
+    padding: 40px;
+}
+
+.file-name {
+    font-weight: 500;
+    color: #495057;
+}
+
+.file-size {
+    color: #6c757d;
+    font-family: 'Courier New', monospace;
+}
+
+.mod-time {
+    color: #6c757d;
+    font-size: 0.9em;
+}
+
+.file-md5 {
+    color: #6c757d;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85em;
+}
+
+.download-link {
+    color: #667eea;
+    text-decoration: none;
+    padding: 8px 12px;
+    border-radius: 5px;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+}
+
+.download-link:hover {
+    background-color: #667eea;
+    color: white;
+    border-color: #667eea;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .container {
+        padding: 10px;
+    }
+    
+    main {
+        padding: 20px;
+    }
+    
+    header h1 {
+        font-size: 2rem;
+    }
+    
+    #drop-area {
+        padding: 30px 15px;
+    }
+    
+    .section-header {
+        flex-direction: column;
+        gap: 15px;
+        align-items: stretch;
+    }
+    
+    #files-table {
+        font-size: 0.9rem;
+    }
+    
+    #files-table th,
+    #files-table td {
+        padding: 10px 8px;
+    }
+}
+
+/* 状态消息样式 */
+.success-message {
+    background-color: #d4edda;
+    color: #155724;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #c3e6cb;
+    margin-bottom: 20px;
+}
+
+.error-message {
+    background-color: #f8d7da;
+    color: #721c24;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #f5c6cb;
+    margin-bottom: 20px;
+}
+
+.info-message {
+    background-color: #d1ecf1;
+    color: #0c5460;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #bee5eb;
+    margin-bottom: 20px;
+}
+
+/* 选中文件列表样式 */
+.selected-file-list {
+    list-style-type: none;
+    padding: 0;
+    margin: 15px 0;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    background-color: #f8f9fa;
+}
+
+.selected-file-list li {
+    padding: 10px 15px;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.selected-file-list li:last-child {
+    border-bottom: none;
+}
+
+/* 上传结果样式 */
+.upload-result {
+    background-color: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border: 1px solid #dee2e6;
+}
+
+.upload-result h3 {
+    margin-top: 0;
+    color: #495057;
+}
+
+.error-list {
+    color: #dc3545;
+    list-style-type: none;
+    padding-left: 0;
+}
+
+.error-list li {
+    padding: 5px 0;
+    border-left: 3px solid #dc3545;
+    padding-left: 10px;
+    margin-bottom: 5px;
+}
