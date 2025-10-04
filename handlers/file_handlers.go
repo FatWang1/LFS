@@ -43,10 +43,11 @@ func RegisterFileHandlers(r *gin.Engine, cfg config.Config) {
 	r.POST("/batch-upload", batchUploadHandler(cfg)) // 批量上传
 	r.POST("/upload-chunk", uploadChunkHandler(cfg)) // 分片上传
 	r.GET("/download/:filename", downloadFileHandler(cfg))
-	r.GET("/download-chunk/:filename", downloadChunkHandler(cfg)) // 分片下载
-	r.GET("/batch-download", batchDownloadHandler(cfg))           // 批量下载
-	r.GET("/files", listFilesHandler(cfg))                        // 添加列出文件路由
-	r.GET("/file-md5/:filename", getFileMD5Handler(cfg))          // 获取文件MD5
+	r.GET("/download-chunk/:filename", downloadChunkHandler(cfg))         // 分片下载
+	r.GET("/batch-download", batchDownloadHandler(cfg))                   // 批量下载
+	r.GET("/files", listFilesHandler(cfg))                                // 添加列出文件路由
+	r.GET("/file-md5/:filename", getFileMD5Handler(cfg))                  // 获取文件MD5
+	r.GET("/file-md5-progress/:filename", getFileMD5ProgressHandler(cfg)) // 获取MD5计算进度
 }
 
 // uploadFileHandler 处理单个文件上传请求
@@ -390,5 +391,39 @@ func getFileMD5Handler(cfg config.Config) gin.HandlerFunc {
 			"filename": filename,
 			"md5":      md5sum,
 		})
+	}
+}
+
+// getFileMD5ProgressHandler 获取文件MD5计算进度
+func getFileMD5ProgressHandler(cfg config.Config) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		filename := c.Param("filename")
+		if filename == "" {
+			errorResponse(c, http.StatusBadRequest, "filename is required")
+			return
+		}
+
+		// 检查文件是否存在
+		if err := storage.CheckFileExists(cfg.StoragePath, filename); err != nil {
+			errorResponse(c, http.StatusNotFound, "file not found")
+			return
+		}
+
+		filePath := storage.GetFilePath(cfg.StoragePath, filename)
+
+		// 获取计算进度
+		progress, calculating, errorMsg := storage.GetMD5Progress(filePath)
+
+		response := gin.H{
+			"filename":    filename,
+			"progress":    progress,
+			"calculating": calculating,
+		}
+
+		if errorMsg != "" {
+			response["error"] = errorMsg
+		}
+
+		c.JSON(http.StatusOK, response)
 	}
 }
