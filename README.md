@@ -17,6 +17,9 @@
 - **智能缓存** - 静态文件内存缓存，零延迟响应
 - **连接池** - 支持100并发上传，200并发下载
 - **大缓冲区** - 4MB缓冲区，提升传输速度
+- **异步MD5计算** - 支持任意大小文件，无超时限制
+- **分块MD5计算** - 64MB分块，内存占用恒定
+- **进度追踪** - 实时显示MD5计算进度
 
 ### 🛡️ 安全特性
 - **CORS支持** - 跨域访问控制
@@ -30,7 +33,7 @@
 
 ```bash
 # 克隆项目
-git clone <repository-url>
+git clone git@github.com:FatWang1/LFS.git
 cd LFS
 
 # 构建（生成单个可执行文件）
@@ -86,11 +89,14 @@ curl "http://localhost:8080/batch-download?filenames=file1.txt,file2.txt"
 
 ### 文件管理
 ```bash
-# 列出文件
+# 列出文件（立即返回，MD5异步计算）
 curl http://localhost:8080/files
 
-# 获取文件MD5
+# 获取文件MD5（支持大文件）
 curl http://localhost:8080/file-md5/example.txt
+
+# 查询MD5计算进度
+curl http://localhost:8080/file-md5-progress/huge_file.bin
 
 # 性能监控
 curl http://localhost:8080/metrics
@@ -127,21 +133,25 @@ LFS/
 
 ## 📊 性能指标
 
-- **响应时间**: 主页 < 100µs
+- **响应时间**: 主页 < 100µs，文件列表 < 100ms
 - **压缩率**: CSS文件 73% (6902→1841字节)
 - **并发支持**: 100上传 + 200下载
 - **缓冲区**: 4MB (文件传输), 2MB (分片)
 - **内存使用**: 智能缓存 + 连接池
+- **MD5计算**: 支持任意大小文件，64MB分块
+- **列表性能**: 1000个文件 < 100ms响应
 
 ## 🎨 前端界面
 
-访问 `http://localhost:8080` 使用现代化的Web界面：
+访问 `http://localhost:8080` 使用简洁的Web界面：
 
 - 📁 拖拽上传
 - 📊 实时进度显示
 - 📋 文件列表管理
 - 🔄 断点续传支持
 - ✅ 完整性校验
+- 🔄 MD5计算进度追踪
+- 📈 大文件处理支持
 
 ## 🚀 部署
 
@@ -189,7 +199,25 @@ CMD ["./lfs-server"]
   },
   "cache": {
     "static_files": 3
+  },
+  "md5_calculation": {
+    "in_progress": 2,
+    "completed": 15,
+    "failed": 0
   }
+}
+```
+
+### MD5计算进度查询
+```bash
+# 查询特定文件的MD5计算进度
+curl http://localhost:8080/file-md5-progress/huge_file.bin
+
+# 返回示例
+{
+  "filename": "huge_file.bin",
+  "progress": 0.45,
+  "calculating": true
 }
 ```
 
