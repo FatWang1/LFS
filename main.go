@@ -18,6 +18,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/FatWang1/fatwang-go-utils/desc/set"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/net/http2"
 )
@@ -65,6 +66,26 @@ func initStaticCache() {
 	log.Printf("Cached %d static files", len(staticCache))
 }
 
+// compressibleTypes
+var (
+	compressibleTypes = set.Setify(".html", ".css", ".js", ".svg", ".txt", ".json", ".xml")
+	mimetypeMap       = map[string]string{
+		".css":   "text/css; charset=utf-8",
+		".js":    "application/javascript; charset=utf-8",
+		".html":  "text/html; charset=utf-8",
+		".png":   "image/png",
+		".jpg":   "image/jpeg",
+		".jpeg":  "image/jpeg",
+		".gif":   "image/gif",
+		".svg":   "image/svg+xml",
+		".ico":   "image/x-icon",
+		".woff":  "font/woff",
+		".woff2": "font/woff2",
+		".ttf":   "font/ttf",
+		".eot":   "application/vnd.ms-fontobject",
+	}
+)
+
 // cacheStaticFile 缓存单个静态文件
 func cacheStaticFile(fsys fs.FS, fileName string) error {
 	data, err := fs.ReadFile(fsys, fileName)
@@ -77,7 +98,7 @@ func cacheStaticFile(fsys fs.FS, fileName string) error {
 	etag := fmt.Sprintf(`"%x"`, len(data))
 
 	var gzipData []byte
-	if shouldCompress(ext) {
+	if compressibleTypes.HasKey(ext) {
 		gzipData = compressData(data)
 	}
 
@@ -151,48 +172,10 @@ func homeHandler() gin.HandlerFunc {
 
 // getMimeType 根据文件扩展名获取MIME类型
 func getMimeType(ext string) string {
-	switch ext {
-	case ".css":
-		return "text/css; charset=utf-8"
-	case ".js":
-		return "application/javascript; charset=utf-8"
-	case ".html":
-		return "text/html; charset=utf-8"
-	case ".png":
-		return "image/png"
-	case ".jpg", ".jpeg":
-		return "image/jpeg"
-	case ".gif":
-		return "image/gif"
-	case ".svg":
-		return "image/svg+xml"
-	case ".ico":
-		return "image/x-icon"
-	case ".woff":
-		return "font/woff"
-	case ".woff2":
-		return "font/woff2"
-	case ".ttf":
-		return "font/ttf"
-	case ".eot":
-		return "application/vnd.ms-fontobject"
-	default:
-		return "application/octet-stream"
+	if mimetype, ok := mimetypeMap[ext]; ok {
+		return mimetype
 	}
-}
-
-// shouldCompress 判断文件类型是否应该压缩
-func shouldCompress(ext string) bool {
-	compressibleTypes := map[string]bool{
-		".html": true,
-		".css":  true,
-		".js":   true,
-		".svg":  true,
-		".txt":  true,
-		".json": true,
-		".xml":  true,
-	}
-	return compressibleTypes[ext]
+	return "application/octet-stream"
 }
 
 // compressData 压缩数据
@@ -211,7 +194,7 @@ func acceptsGzip(c *gin.Context) bool {
 
 // gzipMiddleware Gzip压缩中间件
 func gzipMiddleware() gin.HandlerFunc {
-	return gin.HandlerFunc(func(c *gin.Context) {
+	return func(c *gin.Context) {
 		// 只对特定类型的响应进行压缩
 		if !shouldCompressResponse(c) {
 			c.Next()
@@ -241,7 +224,7 @@ func gzipMiddleware() gin.HandlerFunc {
 		// 替换写入器
 		c.Writer = &gzipResponseWriter{Writer: gz, ResponseWriter: c.Writer}
 		c.Next()
-	})
+	}
 }
 
 // shouldCompressResponse 判断响应是否应该压缩
