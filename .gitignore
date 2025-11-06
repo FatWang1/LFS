@@ -18,7 +18,6 @@ venv/
 .vscode/
 .cursor/
 *.sh
-lfs-server
 performance_test.md
 
 # Go specific
