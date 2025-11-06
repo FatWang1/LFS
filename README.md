@@ -33,14 +33,14 @@
 
 ```bash
 # 克隆项目
-git clone git@github.com:FatWang1/LFS.git
+git clone git@github.com:victorwong171/LFS.git
 cd LFS
 
 # 构建（生成单个可执行文件）
-go build -o lfs-server .
+go build -o bin/lfs-server ./cmd/lfs-server
 
 # 运行
-./lfs-server
+./bin/lfs-server
 ```
 
 服务将在 `http://localhost:8080` 启动
@@ -52,7 +52,7 @@ go build -o lfs-server .
 export STORAGE_PATH=/path/to/storage
 
 # 运行服务
-./lfs-server
+./bin/lfs-server
 ```
 
 ## 📡 API 接口
@@ -64,6 +64,8 @@ curl -X POST -F "file=@example.txt" http://localhost:8080/upload
 
 # 分片上传
 curl -X POST -F "file=@chunk.bin" \
+  -F "fileName=large_file.bin" \
+  -F "totalSize=52428800" \
   -F "chunkIndex=0" \
   -F "chunkSize=5242880" \
   -F "totalChunk=10" \
@@ -104,23 +106,70 @@ curl http://localhost:8080/metrics
 
 ## 🏗️ 项目结构
 
+项目采用Go社区推荐的标准布局，遵循清晰的分层架构：
+
 ```
 LFS/
-├── main.go                 # 主程序入口
+├── cmd/                    # 应用程序入口
+│   └── lfs-server/
+│       ├── main.go         # 主程序入口
+│       └── web/            # 静态文件（嵌入）
+│           └── static/
+│               ├── index.html
+│               ├── script.js
+│               └── style.css
+├── internal/               # 私有应用代码（不对外暴露）
+│   ├── app/                # 应用组装层
+│   │   └── app.go
+│   ├── handlers/           # HTTP处理器层
+│   │   ├── file.go
+│   │   └── chat.go
+│   ├── interfaces/         # 接口定义层
+│   │   ├── storage.go
+│   │   ├── cache.go
+│   │   ├── service.go
+│   │   ├── static.go
+│   │   ├── compressor.go
+│   │   └── middleware.go
+│   ├── services/           # 业务服务层
+│   │   ├── file_service.go
+│   │   ├── chat_service.go
+│   │   └── metrics_service.go
+│   ├── storage/            # 存储实现层
+│   │   ├── file_storage.go
+│   │   ├── adapter.go
+│   │   └── md5_cache_adapter.go
+│   └── static/             # 静态文件服务
+│       └── service.go
+├── pkg/                    # 可被外部应用使用的库代码
+│   ├── compression/        # 压缩库
+│   │   └── gzip_compressor.go
+│   └── optimization/       # 性能优化库
+│       └── performance.go
 ├── config/                 # 配置管理
 │   └── config.go
-├── handlers/               # HTTP处理器
-│   └── file_handlers.go
-├── storage/                # 文件存储
-│   └── file_storage.go
-├── optimization/           # 性能优化
-│   └── performance.go
-├── static/                 # 静态文件（嵌入）
-│   ├── index.html
-│   ├── style.css
-│   └── script.js
+├── scripts/                 # 脚本文件
+│   ├── test_large_files.sh
+│   └── performance_test.md
+├── go.mod
+├── go.sum
 └── README.md
 ```
+
+### 架构说明
+
+- **cmd/**: 应用程序入口，遵循Go标准布局
+- **internal/**: 私有代码，外部包无法导入，确保封装性
+- **pkg/**: 可复用的库代码，可被其他项目使用
+- **config/**: 配置管理，位于根目录便于访问
+- **scripts/**: 辅助脚本和文档
+
+### 设计原则
+
+1. **接口隔离**: 通过interfaces包定义清晰的接口契约
+2. **依赖注入**: 在app层组装所有依赖，便于测试和替换
+3. **分层架构**: handlers → services → storage，职责清晰
+4. **可扩展性**: 通过接口实现，易于替换存储、缓存等组件
 
 ## 🔧 技术栈
 
@@ -158,10 +207,10 @@ LFS/
 ### 单机部署
 ```bash
 # 直接运行
-./lfs-server
+./bin/lfs-server
 
 # 后台运行
-nohup ./lfs-server > lfs.log 2>&1 &
+nohup ./bin/lfs-server > lfs.log 2>&1 &
 ```
 
 ### Docker部署（可选）
@@ -169,13 +218,12 @@ nohup ./lfs-server > lfs.log 2>&1 &
 FROM golang:1.21-alpine AS builder
 WORKDIR /app
 COPY . .
-RUN go build -o lfs-server .
+RUN go build -o lfs-server ./cmd/lfs-server
 
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 WORKDIR /root/
 COPY --from=builder /app/lfs-server .
-COPY --from=builder /app/static ./static
 EXPOSE 8080
 CMD ["./lfs-server"]
 ```
