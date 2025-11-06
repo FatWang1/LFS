@@ -5,13 +5,12 @@ import (
 	"os"
 )
 
-// Config represents the application configuration.
+// Config 配置结构体
 type Config struct {
-	StoragePath string `json:"storage_path"` // File storage path
+	StoragePath string `json:"storage_path"`
 }
 
-// LoadConfig loads configuration from environment variables.
-// If LFS_STORAGE_PATH is not set, uses default path "$HOME/Downloads/".
+// LoadConfig 加载配置
 func LoadConfig() Config {
 	storagePath := os.Getenv("LFS_STORAGE_PATH")
 	if storagePath == "" {

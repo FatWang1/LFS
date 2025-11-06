@@ -20,24 +20,3 @@ venv/
 *.sh
 lfs-server
 performance_test.md
-
-# Go specific
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-*.test
-*.out
-go.work
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# Build artifacts
-/bin/
-/dist/
-/build/
